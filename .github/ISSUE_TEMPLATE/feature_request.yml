@@ -1,0 +1,24 @@
+name: Funcionalidade
+description: Proponha uma melhoria alinhada ao PRD
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Qual necessidade do usuário esta proposta resolve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solução proposta
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Impacto de segurança e privacidade
+    validations:
+      required: true

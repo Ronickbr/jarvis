@@ -1,0 +1,25 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - jarvis-data:/app/data
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    build:
+      context: apps/web
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "4173:80"
+    depends_on:
+      - api
+
+volumes:
+  jarvis-data:
