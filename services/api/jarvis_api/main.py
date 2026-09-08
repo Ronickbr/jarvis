@@ -1,6 +1,7 @@
 import sqlite3
 import subprocess
 from functools import lru_cache
+from typing import Annotated
 
 import httpx
 from fastapi import Depends, FastAPI, HTTPException
@@ -32,6 +33,10 @@ def get_store() -> Store:
     return Store(get_settings().database_path)
 
 
+SettingsDependency = Annotated[Settings, Depends(get_settings)]
+StoreDependency = Annotated[Store, Depends(get_store)]
+
+
 app = FastAPI(
     title="Jarvis API",
     version=__version__,
@@ -47,12 +52,12 @@ app.add_middleware(
 
 
 @app.get("/api/v1/health")
-def health(settings: Settings = Depends(get_settings)) -> dict[str, object]:
+def health(settings: SettingsDependency) -> dict[str, object]:
     return {"status": "ok", "version": __version__, "environment": settings.env}
 
 
 @app.get("/api/v1/providers", response_model=list[ProviderStatus])
-def providers(settings: Settings = Depends(get_settings)) -> list[ProviderStatus]:
+def providers(settings: SettingsDependency) -> list[ProviderStatus]:
     available = configured_providers(settings)
     return [
         ProviderStatus(name=name, configured=name in available, models=models)
@@ -61,7 +66,7 @@ def providers(settings: Settings = Depends(get_settings)) -> list[ProviderStatus
 
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, settings: Settings = Depends(get_settings)) -> ChatResponse:
+async def chat(request: ChatRequest, settings: SettingsDependency) -> ChatResponse:
     user_text = next(
         (message.content for message in reversed(request.messages) if message.role == "user"), ""
     )
@@ -102,12 +107,12 @@ async def chat(request: ChatRequest, settings: Settings = Depends(get_settings))
 
 
 @app.get("/api/v1/tools", response_model=list[ToolRecord])
-def list_tools(store: Store = Depends(get_store)) -> list[ToolRecord]:
+def list_tools(store: StoreDependency) -> list[ToolRecord]:
     return store.list_tools()
 
 
 @app.post("/api/v1/tools", response_model=ToolRecord, status_code=201)
-def create_tool(payload: ToolCreate, store: Store = Depends(get_store)) -> ToolRecord:
+def create_tool(payload: ToolCreate, store: StoreDependency) -> ToolRecord:
     try:
         return store.create_tool(payload)
     except sqlite3.IntegrityError as error:
@@ -116,7 +121,7 @@ def create_tool(payload: ToolCreate, store: Store = Depends(get_store)) -> ToolR
 
 @app.post("/api/v1/tools/{tool_id}/approve", response_model=ToolRecord)
 def approve_tool(
-    tool_id: str, payload: ToolApproval, store: Store = Depends(get_store)
+    tool_id: str, payload: ToolApproval, store: StoreDependency
 ) -> ToolRecord:
     current = store.get_tool(tool_id)
     if current is None:
@@ -128,7 +133,7 @@ def approve_tool(
 
 
 @app.post("/api/v1/tools/{tool_id}/validate", response_model=ToolValidationResult)
-def validate_tool(tool_id: str, store: Store = Depends(get_store)) -> ToolValidationResult:
+def validate_tool(tool_id: str, store: StoreDependency) -> ToolValidationResult:
     tool = store.get_tool(tool_id)
     if tool is None:
         raise HTTPException(status_code=404, detail="Tool não encontrada.")
@@ -140,7 +145,7 @@ def validate_tool(tool_id: str, store: Store = Depends(get_store)) -> ToolValida
 
 @app.post("/api/v1/tools/{tool_id}/execute", response_model=ToolExecutionResult)
 def execute_tool(
-    tool_id: str, payload: ToolExecution, store: Store = Depends(get_store)
+    tool_id: str, payload: ToolExecution, store: StoreDependency
 ) -> ToolExecutionResult:
     tool = store.get_tool(tool_id)
     if tool is None:

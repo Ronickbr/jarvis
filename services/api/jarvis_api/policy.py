@@ -45,9 +45,10 @@ def validate_source(language: str, code: str) -> tuple[bool, str]:
     for character in code:
         if character in pairs:
             stack.append(character)
-        elif character in pairs.values():
-            if not stack or pairs[stack.pop()] != character:
-                return False, "Delimitadores JavaScript desbalanceados."
+        elif character in pairs.values() and (
+            not stack or pairs[stack.pop()] != character
+        ):
+            return False, "Delimitadores JavaScript desbalanceados."
     if stack:
         return False, "Delimitadores JavaScript desbalanceados."
     return (

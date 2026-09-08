@@ -25,5 +25,8 @@ testpaths = ["services/api/tests"]
 line-length = 100
 target-version = "py312"
 
+[tool.ruff.lint]
+ignore = ["I001"]
+
 [tool.setuptools.packages.find]
 where = ["services/api"]
