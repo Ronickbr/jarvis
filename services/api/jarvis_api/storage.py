@@ -108,7 +108,17 @@ class Store:
     def evolution(self, configured_providers: int) -> EvolutionSnapshot:
         with self._connect() as db:
             event_rows = db.execute(
-                "SELECT event, COUNT(*) AS total FROM audit_log GROUP BY event"
+                """
+                SELECT
+                    event,
+                    CASE
+                        WHEN event IN ('tool.created', 'tool.validation_passed', 'tool.approved')
+                        THEN COUNT(DISTINCT tool_id)
+                        ELSE COUNT(*)
+                    END AS total
+                FROM audit_log
+                GROUP BY event
+                """
             ).fetchall()
             tool_row = db.execute(
                 """
