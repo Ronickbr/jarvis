@@ -9,8 +9,8 @@ EVENT_POINTS = {
     "chat.demo_completed": 3,
     "chat.completed": 8,
     "tool.created": 10,
-    "tool.validated": 15,
-    "tool.status_changed": 20,
+    "tool.validation_passed": 15,
+    "tool.approved": 20,
     "tool.executed": 25,
 }
 
