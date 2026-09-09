@@ -149,7 +149,10 @@ def approve_tool(
     if payload.approved and current.status != ToolStatus.validated:
         raise HTTPException(status_code=409, detail="Valide a tool antes de aprová-la.")
     status = ToolStatus.approved if payload.approved else ToolStatus.disabled
-    return store.set_status(tool_id, status)  # type: ignore[return-value]
+    updated = store.set_status(tool_id, status)
+    if payload.approved:
+        store.audit("tool.approved", tool_id, {"risk": current.risk.value})
+    return updated  # type: ignore[return-value]
 
 
 @app.post("/api/v1/tools/{tool_id}/validate", response_model=ToolValidationResult)
@@ -160,6 +163,8 @@ def validate_tool(tool_id: str, store: StoreDependency) -> ToolValidationResult:
     valid, detail = validate_source(tool.language, tool.code)
     updated = store.set_status(tool.id, ToolStatus.validated if valid else ToolStatus.draft)
     store.audit("tool.validated", tool.id, {"valid": valid, "detail": detail})
+    if valid:
+        store.audit("tool.validation_passed", tool.id, {"risk": tool.risk.value})
     return ToolValidationResult(valid=valid, detail=detail, tool=updated)  # type: ignore[arg-type]
 
 
