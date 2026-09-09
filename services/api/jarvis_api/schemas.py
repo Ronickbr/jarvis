@@ -94,5 +94,23 @@ class ToolExecutionResult(BaseModel):
     risk: RiskLevel
 
 
+class EvolutionMetrics(BaseModel):
+    conversations: int
+    providers_configured: int
+    tools_created: int
+    tools_enabled: int
+    tool_executions: int
+
+
+class EvolutionSnapshot(BaseModel):
+    level: int = Field(ge=1, le=5)
+    stage: str
+    xp: int = Field(ge=0)
+    progress: int = Field(ge=0, le=100)
+    next_threshold: int | None
+    xp_to_next: int = Field(ge=0)
+    metrics: EvolutionMetrics
+
+
 def utc_now() -> datetime:
     return datetime.now(UTC)
