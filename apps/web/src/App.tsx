@@ -4,7 +4,7 @@ import {
   Gauge, LockKeyhole, MemoryStick, Mic, MicOff, Network, Send, Settings,
   ShieldCheck, Sparkles, TerminalSquare, Volume2, Wifi, Zap,
 } from "lucide-react";
-import { api, Provider } from "./api";
+import { api, Evolution, Provider } from "./api";
 
 type Message = { id: number; role: "assistant" | "user"; content: string; meta?: string };
 type SpeechRecognitionCtor = new () => {
@@ -17,7 +17,15 @@ const starterMessages: Message[] = [{
   id: 1, role: "assistant", content: "Sistemas neurais sincronizados. Em que posso ajudar, senhor?", meta: "JARVIS · AGORA",
 }];
 const fallbackProviders: Provider[] = ["openai", "anthropic", "gemini", "xai"].map((name) => ({ name, configured: false, models: [] }));
-const stages = ["NÚCLEO", "SENCIENTE", "ADAPTATIVO", "COGNITIVO", "ÔMEGA"];
+const fallbackEvolution: Evolution = {
+  level: 1,
+  stage: "NÚCLEO",
+  xp: 0,
+  progress: 0,
+  next_threshold: 100,
+  xp_to_next: 100,
+  metrics: { conversations: 0, providers_configured: 0, tools_created: 0, tools_enabled: 0, tool_executions: 0 },
+};
 
 function NeuralFace({ level, state }: { level: number; state: "idle" | "listening" | "thinking" | "speaking" }) {
   const nodes = useMemo(() => Array.from({ length: 56 }, (_, i) => ({
@@ -57,13 +65,17 @@ export default function App() {
   const [provider, setProvider] = useState("auto");
   const [activeModel, setActiveModel] = useState("Roteamento automático");
   const [lastLatency, setLastLatency] = useState<number | null>(null);
-  const [interactions, setInteractions] = useState(() => Number(localStorage.getItem("jarvis-interactions") ?? 0));
+  const [evolution, setEvolution] = useState<Evolution>(fallbackEvolution);
   const [input, setInput] = useState(""); const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false); const [speaking, setSpeaking] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false); const [online, setOnline] = useState(false);
   const recognition = useRef<InstanceType<SpeechRecognitionCtor> | null>(null);
 
-  useEffect(() => { api.providers().then((items) => { setProviders(items); setOnline(true); }).catch(() => setOnline(false)); }, []);
+  useEffect(() => {
+    Promise.all([api.providers(), api.evolution()])
+      .then(([items, snapshot]) => { setProviders(items); setEvolution(snapshot); setOnline(true); })
+      .catch(() => setOnline(false));
+  }, []);
   useEffect(() => {
     const SpeechRecognition = (window as unknown as Record<string, SpeechRecognitionCtor>).SpeechRecognition ?? (window as unknown as Record<string, SpeechRecognitionCtor>).webkitSpeechRecognition;
     if (!SpeechRecognition) return; setSpeechSupported(true); const instance = new SpeechRecognition();
@@ -72,8 +84,8 @@ export default function App() {
   }, []);
 
   const configured = providers.filter((item) => item.configured).length;
-  const evolutionXp = Math.min(100, interactions * 9 + configured * 14);
-  const evolutionLevel = Math.min(5, 1 + Math.floor(evolutionXp / 20));
+  const evolutionXp = evolution.progress;
+  const evolutionLevel = evolution.level;
   const avatarState = busy ? "thinking" : listening ? "listening" : speaking ? "speaking" : "idle";
   function toggleListening() { if (!recognition.current) return; if (listening) recognition.current.stop(); else { setListening(true); recognition.current.start(); } }
 
@@ -83,7 +95,7 @@ export default function App() {
     try {
       const result = await api.chat(content, provider); setActiveModel(`${result.provider} · ${result.model}`); setLastLatency(result.latency_ms);
       setMessages((current) => [...current, { id: Date.now() + 1, role: "assistant", content: result.content, meta: `${result.provider.toUpperCase()} · ${result.model} · ${result.latency_ms} MS` }]);
-      setInteractions((current) => { const next = current + 1; localStorage.setItem("jarvis-interactions", String(next)); return next; });
+      api.evolution().then(setEvolution).catch(() => undefined);
       if ("speechSynthesis" in window) { const utterance = new SpeechSynthesisUtterance(result.content); utterance.lang = "pt-BR"; utterance.rate = 1.04; utterance.onstart = () => setSpeaking(true); utterance.onend = () => setSpeaking(false); window.speechSynthesis.speak(utterance); }
     } catch (error) { setMessages((current) => [...current, { id: Date.now() + 1, role: "assistant", content: error instanceof Error ? error.message : "Não consegui alcançar o núcleo.", meta: "SISTEMA · FALHA DE CONEXÃO" }]); }
     finally { setBusy(false); }
@@ -98,8 +110,8 @@ export default function App() {
       <section className="dashboard"><div className="hero-copy"><p className="eyebrow"><Sparkles size={15}/> INTERFACE COGNITIVA</p><h1>JARVIS <span>NEURAL CORE</span></h1><p>Consciência digital adaptativa · Monitoramento em tempo real</p></div>
         <div className="neural-layout">
           <div className="side-cards left-cards"><p className="rail-title">SISTEMAS</p><InfoCard icon={<Wifi size={17}/>} label="NÚCLEO" value={online ? "ONLINE" : "LOCAL"} detail={online ? "API sincronizada" : "Modo demonstração"} tone="green"/><InfoCard icon={<Cpu size={17}/>} label="MODELO ATIVO" value={provider === "auto" ? "AUTO" : provider.toUpperCase()} detail={activeModel}/><InfoCard icon={<Gauge size={17}/>} label="LATÊNCIA" value={lastLatency ? `${lastLatency} ms` : "— ms"} detail={lastLatency && lastLatency < 2500 ? "Dentro da meta" : "Aguardando amostra"}/></div>
-          <div className="face-column"><div className="level-badge"><span>NÍVEL {String(evolutionLevel).padStart(2,"0")}</span><strong>{stages[evolutionLevel - 1]}</strong></div><NeuralFace level={evolutionLevel} state={avatarState}/><div className="evolution-track"><div><span>EVOLUÇÃO NEURAL</span><strong>{evolutionXp}%</strong></div><div className="track"><i style={{width:`${evolutionXp}%`}}/></div><small>{100-evolutionXp} XP PARA O PRÓXIMO MARCO</small></div></div>
-          <div className="side-cards right-cards"><p className="rail-title">INTELIGÊNCIA</p><InfoCard icon={<MemoryStick size={17}/>} label="MEMÓRIA" value={`${interactions} CICLOS`} detail="Aprendizado local"/><InfoCard icon={<ShieldCheck size={17}/>} label="SEGURANÇA" value="PROTEGIDO" detail="Política de tools ativa" tone="green"/><InfoCard icon={<Volume2 size={17}/>} label="VOZ" value="PT-BR" detail={speechSupported ? "Reconhecimento pronto" : "Entrada por texto"}/></div>
+          <div className="face-column"><div className="level-badge"><span>NÍVEL {String(evolutionLevel).padStart(2,"0")}</span><strong>{evolution.stage}</strong></div><NeuralFace level={evolutionLevel} state={avatarState}/><div className="evolution-track"><div><span>EVOLUÇÃO NEURAL</span><strong>{evolutionXp}%</strong></div><div className="track"><i style={{width:`${evolutionXp}%`}}/></div><small>{evolution.next_threshold ? `${evolution.xp_to_next} XP PARA O PRÓXIMO MARCO` : "NÍVEL MÁXIMO ATINGIDO"}</small></div></div>
+          <div className="side-cards right-cards"><p className="rail-title">INTELIGÊNCIA</p><InfoCard icon={<MemoryStick size={17}/>} label="MEMÓRIA" value={`${evolution.metrics.conversations} CICLOS`} detail={`${evolution.metrics.tool_executions} tools executadas`}/><InfoCard icon={<ShieldCheck size={17}/>} label="SEGURANÇA" value="PROTEGIDO" detail="Política de tools ativa" tone="green"/><InfoCard icon={<Volume2 size={17}/>} label="VOZ" value="PT-BR" detail={speechSupported ? "Reconhecimento pronto" : "Entrada por texto"}/></div>
         </div>
         <section className="workspace-card"><div className="conversation" aria-live="polite">{messages.map((message) => <div className={`message ${message.role}`} key={message.id}><div className="avatar">{message.role === "assistant" ? <Bot size={18}/> : "R"}</div><div><small>{message.meta ?? "VOCÊ · AGORA"}</small><p>{message.content}</p></div></div>)}{busy && <div className="typing"><i/><i/><i/></div>}</div>
           <form onSubmit={submit} className="composer"><button type="button" className={`mic ${listening ? "listening" : ""}`} onClick={toggleListening} disabled={!speechSupported} aria-label={listening ? "Parar de ouvir" : "Iniciar comando de voz"}>{listening ? <MicOff size={20}/> : <Mic size={20}/>}</button><label><span className="sr-only">Comando</span><input value={input} onChange={(event)=>setInput(event.target.value)} placeholder="Diga ou digite uma instrução para o núcleo..." maxLength={50000}/></label><select value={provider} onChange={(event)=>setProvider(event.target.value)} aria-label="Provedor"><option value="auto">AUTO</option>{providers.map((item)=><option key={item.name} value={item.name}>{item.name.toUpperCase()}</option>)}</select><button type="submit" className="send" disabled={busy || !input.trim()} aria-label="Enviar"><Send size={19}/></button></form>
