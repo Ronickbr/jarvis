@@ -4,8 +4,9 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from .evolution import EvolutionCounts, calculate_evolution
 from .policy import classify_tool
-from .schemas import RiskLevel, ToolCreate, ToolRecord, ToolStatus, utc_now
+from .schemas import EvolutionSnapshot, RiskLevel, ToolCreate, ToolRecord, ToolStatus, utc_now
 
 
 class Store:
@@ -103,6 +104,36 @@ class Store:
                 (audit_id, event, tool_id, json.dumps(detail), utc_now().isoformat()),
             )
         return audit_id
+
+    def evolution(self, configured_providers: int) -> EvolutionSnapshot:
+        with self._connect() as db:
+            event_rows = db.execute(
+                """
+                SELECT
+                    event,
+                    CASE
+                        WHEN event IN ('tool.created', 'tool.validation_passed', 'tool.approved')
+                        THEN COUNT(DISTINCT tool_id)
+                        ELSE COUNT(*)
+                    END AS total
+                FROM audit_log
+                GROUP BY event
+                """
+            ).fetchall()
+            tool_row = db.execute(
+                """
+                SELECT
+                    COUNT(*) AS created,
+                    SUM(CASE WHEN status IN ('approved', 'enabled') THEN 1 ELSE 0 END) AS enabled
+                FROM tools
+                """
+            ).fetchone()
+        counts = EvolutionCounts(
+            events={row["event"]: row["total"] for row in event_rows},
+            tools_created=tool_row["created"],
+            tools_enabled=tool_row["enabled"] or 0,
+        )
+        return calculate_evolution(counts, configured_providers)
 
     @staticmethod
     def _to_tool(row: sqlite3.Row) -> ToolRecord:

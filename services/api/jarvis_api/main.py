@@ -16,6 +16,7 @@ from .sandbox import SandboxFailure, SandboxUnavailable, execute_in_docker
 from .schemas import (
     ChatRequest,
     ChatResponse,
+    EvolutionSnapshot,
     ProviderStatus,
     ToolApproval,
     ToolCreate,
@@ -56,6 +57,11 @@ def health(settings: SettingsDependency) -> dict[str, object]:
     return {"status": "ok", "version": __version__, "environment": settings.env}
 
 
+@app.get("/api/v1/evolution", response_model=EvolutionSnapshot)
+def evolution(settings: SettingsDependency, store: StoreDependency) -> EvolutionSnapshot:
+    return store.evolution(len(configured_providers(settings)))
+
+
 @app.get("/api/v1/providers", response_model=list[ProviderStatus])
 def providers(settings: SettingsDependency) -> list[ProviderStatus]:
     available = configured_providers(settings)
@@ -66,7 +72,9 @@ def providers(settings: SettingsDependency) -> list[ProviderStatus]:
 
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, settings: SettingsDependency) -> ChatResponse:
+async def chat(
+    request: ChatRequest, settings: SettingsDependency, store: StoreDependency
+) -> ChatResponse:
     user_text = next(
         (message.content for message in reversed(request.messages) if message.role == "user"), ""
     )
@@ -82,7 +90,9 @@ async def chat(request: ChatRequest, settings: SettingsDependency) -> ChatRespon
             raise HTTPException(
                 status_code=409, detail="O provedor solicitado não está configurado."
             )
-        return demo_response(user_text)
+        response = demo_response(user_text)
+        store.audit("chat.demo_completed", None, {"model": response.model})
+        return response
 
     failures: list[str] = []
     while route:
@@ -90,6 +100,16 @@ async def chat(request: ChatRequest, settings: SettingsDependency) -> ChatRespon
             response = await complete(route, request.messages, settings, request.personality)
             if failures:
                 response.reason += f"; fallback após falha em {', '.join(failures)}"
+            store.audit(
+                "chat.completed",
+                None,
+                {
+                    "provider": response.provider,
+                    "model": response.model,
+                    "latency_ms": response.latency_ms,
+                    "fallbacks": failures,
+                },
+            )
             return response
         except httpx.HTTPError as error:
             failures.append(route.provider)
@@ -129,7 +149,10 @@ def approve_tool(
     if payload.approved and current.status != ToolStatus.validated:
         raise HTTPException(status_code=409, detail="Valide a tool antes de aprová-la.")
     status = ToolStatus.approved if payload.approved else ToolStatus.disabled
-    return store.set_status(tool_id, status)  # type: ignore[return-value]
+    updated = store.set_status(tool_id, status)
+    if payload.approved:
+        store.audit("tool.approved", tool_id, {"risk": current.risk.value})
+    return updated  # type: ignore[return-value]
 
 
 @app.post("/api/v1/tools/{tool_id}/validate", response_model=ToolValidationResult)
@@ -140,6 +163,8 @@ def validate_tool(tool_id: str, store: StoreDependency) -> ToolValidationResult:
     valid, detail = validate_source(tool.language, tool.code)
     updated = store.set_status(tool.id, ToolStatus.validated if valid else ToolStatus.draft)
     store.audit("tool.validated", tool.id, {"valid": valid, "detail": detail})
+    if valid:
+        store.audit("tool.validation_passed", tool.id, {"risk": tool.risk.value})
     return ToolValidationResult(valid=valid, detail=detail, tool=updated)  # type: ignore[arg-type]
 
 

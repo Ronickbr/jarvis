@@ -2,15 +2,17 @@
 
 Assistente pessoal **voice-first**, multi-LLM e extensível, projetado para transformar linguagem natural em respostas e ações auditáveis. A fundação combina uma interface HUD em React, API FastAPI, shell desktop Tauri e execução permissionada de ferramentas em Docker.
 
-> **Estado atual:** fundação técnica `v0.1.0`. O chat, o roteador e o ciclo seguro de tools estão implementados; wake word nativa, memória vetorial e autonomia multi-etapas permanecem no roadmap.
+> **Estado atual:** versão `v0.2.0`. O dashboard neural, a evolução auditável, o chat, o roteador multi-LLM e o ciclo seguro de tools estão implementados; wake word nativa, memória vetorial e autonomia multi-etapas permanecem no roadmap.
 
-![Tela do Jarvis Command Center](docs/app-preview.svg)
+![Interface web do Jarvis Neural Core com rosto digital evolutivo e cards de telemetria](docs/app-preview.svg)
 
 ## O que já funciona
 
 | Recurso | Estado | Observação |
 |---|---:|---|
 | Chat por texto | ✅ | Usa API real ou modo demonstração sem credenciais |
+| Rosto neural evolutivo | ✅ | Cinco estágios visuais alimentados por métricas auditáveis do backend |
+| Telemetria lateral | ✅ | Núcleo, modelo, latência, memória, segurança e voz |
 | OpenAI, Anthropic, Gemini e xAI | ✅ | Contratos HTTP e seleção manual |
 | Roteamento automático | ✅ | Classifica tarefas de código, raciocínio, criatividade e uso geral |
 | Voz no navegador | 🧪 | Web Speech API, conforme suporte do navegador |
@@ -87,6 +89,18 @@ docker compose up --build
 
 Interface: `http://localhost:4173` · API: `http://localhost:8000/docs`
 
+## Evolução neural
+
+O nível do rosto não é escolhido aleatoriamente. O backend calcula XP usando somente marcos positivos registrados no log de auditoria: conversas concluídas, providers configurados e tools criadas, validadas, aprovadas ou executadas com sucesso. Falhas, bloqueios e execuções negadas não geram progresso.
+
+| Nível | Estágio | XP mínimo |
+|---:|---|---:|
+| 1 | Núcleo | 0 |
+| 2 | Senciente | 100 |
+| 3 | Adaptativo | 250 |
+| 4 | Cognitivo | 500 |
+| 5 | Ômega | 900 |
+
 ## Ciclo de uma tool
 
 ```mermaid
@@ -106,6 +120,7 @@ Endpoints principais:
 |---|---|---|
 | `GET` | `/api/v1/health` | Saúde e versão |
 | `GET` | `/api/v1/providers` | Provedores configurados |
+| `GET` | `/api/v1/evolution` | Nível, XP, progresso, marcos e métricas auditáveis |
 | `POST` | `/api/v1/chat` | Conversa e roteamento |
 | `POST` | `/api/v1/tools` | Cria tool como rascunho |
 | `POST` | `/api/v1/tools/{id}/validate` | Valida o código |

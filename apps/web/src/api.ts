@@ -4,6 +4,22 @@ export type Provider = {
   models: string[];
 };
 
+export type Evolution = {
+  level: number;
+  stage: string;
+  xp: number;
+  progress: number;
+  next_threshold: number | null;
+  xp_to_next: number;
+  metrics: {
+    conversations: number;
+    providers_configured: number;
+    tools_created: number;
+    tools_enabled: number;
+    tool_executions: number;
+  };
+};
+
 export type ChatResult = {
   content: string;
   provider: string;
@@ -28,6 +44,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  evolution: () => request<Evolution>("/api/v1/evolution"),
   providers: () => request<Provider[]>("/api/v1/providers"),
   chat: (content: string, provider: string) =>
     request<ChatResult>("/api/v1/chat", {
